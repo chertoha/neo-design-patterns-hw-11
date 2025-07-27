@@ -16,12 +16,35 @@ const handlerMap = {
 };
 
 async function main() {
-  // зчитування даних
-  // створення mediator
-  // цикл по records:
-  //   - вибір handler-а через handlerMap
-  //   - try/catch: handle + mediator.onSuccess/onRejected
-  // finalize
+  const raw = await fs.readFile("src/data/records.json", "utf-8");
+  const records: DataRecord[] = JSON.parse(raw);
+  console.log(`[INFO] Завантажено записів: ${records.length}`);
+
+  const mediator = new ProcessingMediator(
+    new AccessLogWriter(),
+    new TransactionWriter(),
+    new ErrorLogWriter(),
+    new RejectedWriter()
+  );
+
+  for (const record of records) {
+    const builder = handlerMap[record.type];
+    if (!builder) {
+      mediator.onRejected(record, "Unknown type");
+      continue;
+    }
+
+    const handler = builder();
+
+    try {
+      const processed = handler.handle(record);
+      mediator.onSuccess(processed);
+    } catch (e: any) {
+      mediator.onRejected(record, e.message);
+    }
+  }
+
+  await mediator.finalize();
 }
 
 main();

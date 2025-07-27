@@ -7,6 +7,10 @@ import { RejectedWriter } from "./writers/RejectedWriter";
 export class ProcessingMediator {
   private writerMap: Record<string, any>;
   private rejectedWriter: RejectedWriter;
+
+  private successCount = 0;
+  private rejectedCount = 0;
+
   constructor(
     accessLogWriter: AccessLogWriter,
     transactionWriter: TransactionWriter,
@@ -22,14 +26,25 @@ export class ProcessingMediator {
   }
 
   onSuccess(record: DataRecord) {
-    // TODO
+    this.successCount++;
+    this.writerMap[record.type].write(record);
   }
 
   onRejected(original: DataRecord, error: string) {
-    // TODO
+    this.rejectedCount++;
+    this.rejectedWriter.write(original, error);
   }
 
   async finalize() {
-    // TODO
+    await Promise.all([
+      this.writerMap.access_log.finalize(),
+      this.writerMap.transaction.finalize(),
+      this.writerMap.system_error.finalize(),
+      this.rejectedWriter.finalize(),
+    ]);
+
+    console.log(`[INFO] Успішно оброблено: ${this.successCount}`);
+    console.log(`[WARN] Відхилено з помилками: ${this.rejectedCount}`);
+    console.log(`[INFO] Звіт збережено у директорії output/`);
   }
 }
